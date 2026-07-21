@@ -138,5 +138,9 @@ func (s *Server) Router() http.Handler {
 		})
 	})
 
+	// Serve the built frontend (web/dist) for everything else. No-op if the
+	// dist folder isn't present (local `go run` during frontend dev).
+	mountStatic(r, "./web/dist")
+
 	return r
 }

@@ -1,0 +1,14 @@
+.git
+.env
+.env.local
+*.env
+web/node_modules
+web/dist
+node_modules
+*.log
+*.exe
+/bin
+/tmp
+uploads
+.claude
+attached_assets

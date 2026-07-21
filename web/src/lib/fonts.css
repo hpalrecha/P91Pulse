@@ -1,0 +1,51 @@
+/* Font definitions for the application */
+:root {
+  /* Font families */
+  --font-header: 'Oxanium', sans-serif;
+  --font-body: 'Sarabun', sans-serif;
+}
+
+.font-header {
+  font-family: var(--font-header);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+/* Text glow effect for accent elements */
+.text-glow {
+  text-shadow: 0 0 10px rgba(77, 184, 72, 0.5);
+}
+
+/* Button hover effects */
+.hover-shadow-neon:hover {
+  box-shadow: 0 0 5px var(--primary), 0 0 10px var(--primary);
+}
+
+/* Scroll animations */
+.scroll-trigger {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.scroll-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Hover scale effect */
+.hover-scale {
+  transition: transform 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+/* Base colors */
+:root {
+  --accent: 114 100% 54%;
+  --accent-foreground: 0 0% 0%;
+}

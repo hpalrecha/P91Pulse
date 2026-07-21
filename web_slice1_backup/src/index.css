@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* P91 Pulse theme — ported from p91pulse_stage (theme.json: primary #4db848,
+   appearance light, "professional" variant). Green + white, minimal, sharp. */
+@theme {
+  --color-primary: #4db848;
+  --color-primary-hover: #439f3f;
+  --color-primary-light: #eaf7e9;
+  --color-primary-foreground: #ffffff;
+
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f6f7; /* gray-100-ish page background */
+
+  --radius-field: 0.375rem;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-[var(--color-surface-muted)] text-neutral-900 antialiased;
+}
+
+/* ---- Reusable form-control affordances --------------------------------- */
+
+/* Any <select> gets a custom chevron that sits with real breathing room from
+   the box wall (the recurring bug: native/appearance-none arrows glued to the
+   border). Right padding reserves room so text never runs under the icon. */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem; /* clears the icon with visible gap on both sides */
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}

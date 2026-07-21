@@ -1,0 +1,1035 @@
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { format } from "date-fns";
+import { z } from "zod";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useLocation } from "wouter";
+import { 
+  ClipboardList, 
+  Loader2, 
+  ChevronDown, 
+  Search, 
+  Plus, 
+  AlertCircle, 
+  CheckCircle, 
+  XCircle,
+  Filter 
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Define the claim form schema
+const claimFormSchema = z.object({
+  productType: z.enum(["unused", "registered"], {
+    required_error: "Please select a product type",
+  }),
+  batchNumber: z.string().optional(),
+  eWarrantyNumber: z.string().optional(),
+  productId: z.number().optional(),
+  productName: z.string().optional(),
+  productSize: z.string().optional(),
+  serialNumber: z.string().optional(),
+  lotNumber: z.string().optional(),
+  
+  // Claim details
+  problemLength: z.string().min(1, "Length is required"),
+  problemWidth: z.string().min(1, "Width is required"),
+  problemArea: z.string().min(1, "Problem area is required"),
+  issueType: z.string().min(1, "Issue type is required"),
+  description: z.string().min(10, "Please provide a detailed description (min 10 characters)"),
+
+  // Auto-fetched claim raiser info (will be populated from API)
+  distributorName: z.string().optional(),
+  detailerName: z.string().optional(),
+  city: z.string().optional(),
+  contactInfo: z.string().optional(),
+  role: z.string().optional(),
+})
+  .refine(
+    (data) => {
+      if (data.productType === "unused") {
+        return !!data.batchNumber;
+      }
+      if (data.productType === "registered") {
+        return !!data.eWarrantyNumber;
+      }
+      return false;
+    },
+    {
+      message: "Batch number or e-warranty number is required based on product type",
+      path: ["batchNumber"],
+    }
+  );
+
+type ClaimFormValues = z.infer<typeof claimFormSchema>;
+
+export default function DetailerClaimsPage() {
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
+  const [loading, setLoading] = useState(true);
+  const [claims, setClaims] = useState<any[]>([]);
+  const [filteredClaims, setFilteredClaims] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
+  const [selectedClaim, setSelectedClaim] = useState<any>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [claimFormOpen, setClaimFormOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  
+  // Initialize form for claim registration
+  const form = useForm<ClaimFormValues>({
+    resolver: zodResolver(claimFormSchema),
+    defaultValues: {
+      productType: "unused",
+      batchNumber: "",
+      eWarrantyNumber: "",
+      problemLength: "",
+      problemWidth: "",
+      problemArea: "",
+      issueType: "",
+      description: "",
+      distributorName: "",
+      detailerName: "",
+      city: "",
+      contactInfo: "",
+      role: "",
+    },
+  });
+  
+  // Effect to fetch user info when form opens
+  useEffect(() => {
+    if (claimFormOpen) {
+      fetchUserInfo();
+    }
+  }, [claimFormOpen]);
+  
+  // Function to fetch logged-in user info
+  const fetchUserInfo = async () => {
+    try {
+      const res = await apiRequest('GET', '/api/erp/me');
+      const userData = await res.json();
+      
+      if (userData) {
+        // Auto-populate user information
+        form.setValue("detailerName", userData.name || "");
+        form.setValue("city", userData.city || "");
+        form.setValue("contactInfo", userData.phone || userData.email || "");
+        form.setValue("role", "Detailer");
+        
+        // If the detailer has an assigned distributor, fetch that info
+        if (userData.distributorId) {
+          const distributorRes = await apiRequest('GET', `/api/erp/distributor/${userData.distributorId}`);
+          const distributorData = await distributorRes.json();
+          
+          if (distributorData) {
+            form.setValue("distributorName", distributorData.name || "");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+      toast({
+        title: "Information Error",
+        description: "Could not fetch your account information",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Fetch claims
+  useEffect(() => {
+    const fetchClaims = async () => {
+      try {
+        const res = await apiRequest('GET', '/api/erp/detailer/claims');
+        const data = await res.json();
+        setClaims(data);
+        setFilteredClaims(data);
+      } catch (error) {
+        console.error('Error fetching claims:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load claims. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClaims();
+  }, [toast]);
+  
+  // Filter claims based on search and status
+  useEffect(() => {
+    if (!claims) return;
+    
+    let filtered = [...claims];
+    
+    // Filter by status
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(claim => claim.status === activeTab);
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(claim => 
+        claim.claimNumber?.toLowerCase().includes(query) ||
+        claim.customerName?.toLowerCase().includes(query) ||
+        claim.productName?.toLowerCase().includes(query) ||
+        claim.issue?.toLowerCase().includes(query) ||
+        `${claim.vehicleMake} ${claim.vehicleModel}`.toLowerCase().includes(query)
+      );
+    }
+    
+    setFilteredClaims(filtered);
+  }, [claims, searchQuery, activeTab]);
+
+  // Handlers
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return 'N/A';
+    return format(new Date(dateString), 'MMM dd, yyyy');
+  };
+  
+  const handleViewDetails = (claim: any) => {
+    setSelectedClaim(claim);
+    setDetailsOpen(true);
+  };
+  
+  const handleCreateClaim = () => {
+    // Open the claim form modal instead of redirecting
+    setClaimFormOpen(true);
+  };
+  
+  // Get badge for claim status
+  const getClaimStatusBadge = (status: string) => {
+    switch (status) {
+      case 'submitted':
+        return <Badge variant="outline" className="text-amber-500 border-amber-200 bg-amber-50">Pending</Badge>;
+      case 'processing':
+        return <Badge variant="outline" className="text-blue-500 border-blue-200 bg-blue-50">Processing</Badge>;
+      case 'approved':
+        return <Badge variant="outline" className="text-green-500 border-green-200 bg-green-50">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="outline" className="text-red-500 border-red-200 bg-red-50">Rejected</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+  
+  // Handle product lookup
+  const handleProductLookup = async () => {
+    const productType = form.getValues("productType");
+    let searchValue = "";
+    let searchType = "";
+    
+    if (productType === "unused") {
+      searchValue = form.getValues("batchNumber") || "";
+      searchType = "batch";
+    } else {
+      searchValue = form.getValues("eWarrantyNumber") || "";
+      searchType = "warranty";
+    }
+    
+    if (!searchValue) {
+      toast({
+        title: "Missing information",
+        description: productType === "unused" 
+          ? "Please enter a batch number" 
+          : "Please enter an e-warranty number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsLookingUp(true);
+    
+    try {
+      const res = await apiRequest(
+        "GET", 
+        `/api/erp/product-lookup?type=${searchType}&value=${encodeURIComponent(searchValue)}`
+      );
+      const data = await res.json();
+      
+      if (data.success) {
+        // Update form with product information
+        form.setValue("productId", data.id);
+        form.setValue("productName", data.name);
+        form.setValue("productSize", data.size);
+        form.setValue("serialNumber", data.serialNumber || "");
+        form.setValue("lotNumber", data.lotNumber || "");
+        
+        toast({
+          title: "Product found",
+          description: `Found: ${data.name}`,
+        });
+      } else {
+        toast({
+          title: "Product not found",
+          description: data.message || "No product found with the provided number",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error looking up product:", error);
+      toast({
+        title: "Lookup failed",
+        description: "There was an error looking up the product",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+  
+  // Handle form submission
+  const onSubmitClaim = async (values: ClaimFormValues) => {
+    if (!values.productId) {
+      toast({
+        title: "Missing product information",
+        description: "Please lookup a valid product first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Calculate area for the claim
+      const area = parseFloat(values.problemLength) * parseFloat(values.problemWidth);
+      
+      // Prepare payload
+      const payload = {
+        productId: values.productId,
+        productType: values.productType,
+        batchNumber: values.productType === 'unused' ? values.batchNumber : undefined,
+        eWarrantyNumber: values.productType === 'registered' ? values.eWarrantyNumber : undefined,
+        serialNumber: values.serialNumber,
+        lotNumber: values.lotNumber,
+        problemLength: values.problemLength,
+        problemWidth: values.problemWidth,
+        problemArea: values.problemArea,
+        issueType: values.issueType,
+        description: values.description,
+        area: isNaN(area) ? 0 : area,
+        
+        // Include claim raiser information
+        distributorName: values.distributorName,
+        detailerName: values.detailerName,
+        city: values.city,
+        contactInfo: values.contactInfo,
+        role: values.role
+      };
+      
+      const res = await apiRequest("POST", "/api/erp/claims/register", payload);
+      const data = await res.json();
+      
+      if (data.success) {
+        toast({
+          title: "Claim registered successfully",
+          description: "Your claim has been submitted for review",
+        });
+        
+        // Close the modal
+        setClaimFormOpen(false);
+        
+        // Reset form
+        form.reset();
+        
+        // Refresh claims data
+        const refreshResponse = await apiRequest('GET', '/api/erp/detailer/claims');
+        const refreshedClaims = await refreshResponse.json();
+        setClaims(refreshedClaims);
+      } else {
+        toast({
+          title: "Registration failed",
+          description: data.message || "Failed to register the claim",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error registering claim:", error);
+      toast({
+        title: "Registration failed",
+        description: "There was an error submitting your claim",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen flex justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading claims...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-6 px-4 sm:px-6 lg:px-8">
+      <div className="mb-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Warranty Claims</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Manage and submit warranty claims for your customers.
+            </p>
+          </div>
+          <Button onClick={handleCreateClaim}>
+            <Plus className="h-4 w-4 mr-2" />
+            Submit New Claim
+          </Button>
+        </div>
+      </div>
+      
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">Total Claims</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{claims.length}</div>
+            <div className="flex items-center mt-1">
+              <ClipboardList className="w-4 h-4 text-primary mr-1" />
+              <p className="text-xs text-primary">All time claims</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">Pending</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {claims.filter(c => c.status === 'submitted').length}
+            </div>
+            <div className="flex items-center mt-1">
+              <AlertCircle className="w-4 h-4 text-amber-500 mr-1" />
+              <p className="text-xs text-amber-500">Awaiting review</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">Approved</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {claims.filter(c => c.status === 'approved').length}
+            </div>
+            <div className="flex items-center mt-1">
+              <CheckCircle className="w-4 h-4 text-green-500 mr-1" />
+              <p className="text-xs text-green-500">Approved claims</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">Rejected</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {claims.filter(c => c.status === 'rejected').length}
+            </div>
+            <div className="flex items-center mt-1">
+              <XCircle className="w-4 h-4 text-red-500 mr-1" />
+              <p className="text-xs text-red-500">Rejected claims</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Filters and Search */}
+      <div className="mb-6 space-y-4">
+        <div className="flex flex-col md:flex-row gap-4 md:items-center">
+          <div className="flex-1 relative">
+            <Input 
+              placeholder="Search claims..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          </div>
+        </div>
+        
+        <Tabs 
+          value={activeTab} 
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
+          <TabsList className="grid grid-cols-5">
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="submitted">Pending</TabsTrigger>
+            <TabsTrigger value="processing">Processing</TabsTrigger>
+            <TabsTrigger value="approved">Approved</TabsTrigger>
+            <TabsTrigger value="rejected">Rejected</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+      
+      {/* Claims Table */}
+      <ClaimsTable 
+        claims={filteredClaims} 
+        formatDate={formatDate}
+        getClaimStatusBadge={getClaimStatusBadge}
+        onViewDetails={handleViewDetails}
+      />
+      
+      {/* Claim Details Dialog */}
+      {selectedClaim && (
+        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <div className="flex justify-between items-center">
+                <DialogTitle>Claim Details</DialogTitle>
+                <Badge className="ml-2">{getClaimStatusBadge(selectedClaim.status)}</Badge>
+              </div>
+              <DialogDescription>
+                Claim #{selectedClaim.claimNumber} submitted on {formatDate(selectedClaim.submissionDate)}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Customer Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Customer</h4>
+                      <p className="text-sm">{selectedClaim.customerName}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Vehicle</h4>
+                      <p className="text-sm">{selectedClaim.vehicleYear} {selectedClaim.vehicleMake} {selectedClaim.vehicleModel}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Product Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Product</h4>
+                      <p className="text-sm">{selectedClaim.productName}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500">Serial Number</h4>
+                        <p className="text-sm">{selectedClaim.serialNumber || "N/A"}</p>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500">Lot Number</h4>
+                        <p className="text-sm">{selectedClaim.lotNumber || "N/A"}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Claim Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Area</h4>
+                      <p className="text-sm">{selectedClaim.problemArea}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Size</h4>
+                      <p className="text-sm">{selectedClaim.problemLength} × {selectedClaim.problemWidth} cm</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Issue Type</h4>
+                      <p className="text-sm">{selectedClaim.issueType}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Description</h4>
+                    <p className="text-sm whitespace-pre-line">{selectedClaim.description}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {selectedClaim.attachmentURLs && selectedClaim.attachmentURLs.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Attachments</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {selectedClaim.attachmentURLs.map((url: string, index: number) => (
+                        <div key={index} className="text-sm border rounded p-2 flex items-center">
+                          <span className="text-gray-500">File {index + 1}</span>
+                          <Button variant="link" className="ml-auto">View</Button>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {selectedClaim.resolution && (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle className="text-base">Resolution</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-line">{selectedClaim.resolution}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      
+      {/* Claim Registration Modal */}
+      <Dialog open={claimFormOpen} onOpenChange={setClaimFormOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Register New Warranty Claim</DialogTitle>
+            <DialogDescription>
+              Enter product information and claim details below
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmitClaim)} className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Product Lookup Section */}
+                <Card className="lg:col-span-1">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Product Information</CardTitle>
+                    <CardDescription>
+                      Enter the serial number or lot number
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <FormField
+                          control={form.control}
+                          name="productType"
+                          render={({ field }) => (
+                            <FormItem className="space-y-1">
+                              <FormLabel>Product Type</FormLabel>
+                              <FormControl>
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                  className="flex flex-row space-x-4"
+                                >
+                                  <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl>
+                                      <RadioGroupItem value="unused" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal cursor-pointer">
+                                      Unused Product
+                                    </FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl>
+                                      <RadioGroupItem value="registered" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal cursor-pointer">
+                                      Registered Product
+                                    </FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      <div className="flex space-x-2">
+                        {form.watch("productType") === "unused" ? (
+                          <FormField
+                            control={form.control}
+                            name="batchNumber"
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <FormLabel>Batch Number</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Enter batch number" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : (
+                          <FormField
+                            control={form.control}
+                            name="eWarrantyNumber"
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <FormLabel>e-Warranty Number</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Enter e-warranty number" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        <Button
+                          className="mt-8"
+                          type="button"
+                          variant="outline"
+                          onClick={handleProductLookup}
+                          disabled={isLookingUp}
+                        >
+                          {isLookingUp ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Search className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      
+                      {/* Product details display */}
+                      {form.watch("productName") && (
+                        <div className="rounded-md border p-4 mt-4">
+                          <h3 className="font-medium">Product Details</h3>
+                          <div className="mt-2 space-y-2 text-sm">
+                            <div className="grid grid-cols-2">
+                              <span className="text-gray-500">Product:</span>
+                              <span>{form.watch("productName")}</span>
+                            </div>
+                            <div className="grid grid-cols-2">
+                              <span className="text-gray-500">Size/Type:</span>
+                              <span>{form.watch("productSize")}</span>
+                            </div>
+                            <div className="grid grid-cols-2">
+                              <span className="text-gray-500">Serial Number:</span>
+                              <span>{form.watch("serialNumber")}</span>
+                            </div>
+                            <div className="grid grid-cols-2">
+                              <span className="text-gray-500">Lot Number:</span>
+                              <span>{form.watch("lotNumber")}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Claim Details Section */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Auto-fetched user information section */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Claim Raised By</CardTitle>
+                      <CardDescription>
+                        Automatically populated from your account
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Distributor</h4>
+                          <p className="text-sm">{form.watch("distributorName") || "Loading..."}</p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Detailer</h4>
+                          <p className="text-sm">{form.watch("detailerName") || "Loading..."}</p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">City</h4>
+                          <p className="text-sm">{form.watch("city") || "Loading..."}</p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Contact</h4>
+                          <p className="text-sm">{form.watch("contactInfo") || "Loading..."}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Claim Details Section */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Claim Details</CardTitle>
+                      <CardDescription>
+                        Provide information about the issue with the product
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="problemLength"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Length (cm)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="Enter length"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="problemWidth"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Width (cm)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="Enter width"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        
+                        <FormField
+                          control={form.control}
+                          name="problemArea"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Problem Area</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g., Front Bumper, Hood, etc."
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={form.control}
+                          name="issueType"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Issue Type</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select issue type" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="peeling">Peeling</SelectItem>
+                                  <SelectItem value="bubbling">Bubbling</SelectItem>
+                                  <SelectItem value="discoloration">Discoloration</SelectItem>
+                                  <SelectItem value="adhesion_failure">Adhesion Failure</SelectItem>
+                                  <SelectItem value="edge_lifting">Edge Lifting</SelectItem>
+                                  <SelectItem value="other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={form.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Detailed Description</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Describe the issue in detail including when it was noticed, how it has progressed, etc."
+                                  className="min-h-[120px]"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <div className="flex justify-end space-x-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setClaimFormOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="submit"
+                            disabled={isSubmitting || !form.watch("productId")}
+                          >
+                            {isSubmitting ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Submitting...
+                              </>
+                            ) : (
+                              "Submit Claim"
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ClaimsTable({ 
+  claims, 
+  formatDate, 
+  getClaimStatusBadge,
+  onViewDetails,
+}: { 
+  claims: any[],
+  formatDate: (date: string | null) => string,
+  getClaimStatusBadge: (status: string) => JSX.Element,
+  onViewDetails: (claim: any) => void,
+}) {
+  return (
+    <Card>
+      <CardContent className="p-0">
+        {claims.length === 0 ? (
+          <div className="text-center py-8">
+            <ClipboardList className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+            <h3 className="text-sm font-medium text-gray-900">No claims found</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              No claims match your current filter criteria.
+            </p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Claim #</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Vehicle</TableHead>
+                <TableHead>Product</TableHead>
+                <TableHead>Issue</TableHead>
+                <TableHead>Submitted</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {claims.map((claim) => (
+                <TableRow key={claim.id}>
+                  <TableCell className="font-medium">{claim.claimNumber}</TableCell>
+                  <TableCell>{claim.customerName}</TableCell>
+                  <TableCell>
+                    {claim.vehicleYear} {claim.vehicleMake} {claim.vehicleModel}
+                  </TableCell>
+                  <TableCell>{claim.productName}</TableCell>
+                  <TableCell className="max-w-xs truncate" title={claim.issue}>
+                    {claim.issue}
+                  </TableCell>
+                  <TableCell>{formatDate(claim.submissionDate)}</TableCell>
+                  <TableCell>
+                    {getClaimStatusBadge(claim.status)}
+                  </TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => onViewDetails(claim)}
+                    >
+                      View
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

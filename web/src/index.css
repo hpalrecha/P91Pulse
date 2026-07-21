@@ -1,0 +1,262 @@
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Warranty A4 print ───────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  /* Force EVERY element to print its background colours, images, gradients */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Hide all page chrome */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Reveal only the warranty card */
+  #warranty-a4-printable,
+  #warranty-a4-printable * {
+    visibility: visible !important;
+  }
+
+  /* Bring the card to the page origin and remove any transform */
+  #warranty-a4-printable {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    z-index: 9999 !important;
+  }
+}
+
+/* ── Digital warranty card animations ───────────────────────────────── */
+@keyframes card-float {
+  0%,  100% { transform: translateY(0px)   rotate(-0.4deg); }
+  25%        { transform: translateY(-8px)  rotate(0deg);    }
+  50%        { transform: translateY(-16px) rotate(0.4deg);  }
+  75%        { transform: translateY(-8px)  rotate(0deg);    }
+}
+
+@keyframes card-shadow-pulse {
+  0%,  100% { transform: scaleX(1)    translateY(0); opacity: 0.35; }
+  50%        { transform: scaleX(0.7) translateY(0); opacity: 0.2;  }
+}
+
+.warranty-card-float {
+  animation: card-float 5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.warranty-card-shadow {
+  animation: card-shadow-pulse 5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Dropdown menu styles */
+.dropdown-menu {
+  z-index: 50;
+}
+
+/* Add a subtle animation for the dropdown open state */
+.dropdown-menu.visible {
+  animation: fadeInUp 0.3s ease forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Give dropdown items a smooth transition */
+.dropdown-menu a {
+  position: relative;
+}
+
+.dropdown-menu a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background-color: var(--primary);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.dropdown-menu a:hover::after {
+  transform: scaleX(0.15);
+}
+
+:root {
+  /* Primary brand color - P91 green */
+  --primary: #4db848;
+  --primary-rgb: 77, 184, 72;
+  --primary-hover: rgba(77, 184, 72, 0.9);
+  --primary-light: rgba(77, 184, 72, 0.1);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-white text-neutral-900;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-oxanium font-bold;
+  }
+}
+
+@layer components {
+  /* Clean minimalist effect like Gyeon */
+  .glass-panel {
+    @apply bg-white/95 backdrop-blur-sm bg-opacity-80 border-b border-gray-100 shadow-subtle;
+  }
+  
+  .dark-panel {
+    @apply bg-neutral-900 bg-opacity-95 border-0 shadow-premium;
+  }
+  
+  /* Premium button styles */
+  .btn-premium {
+    @apply px-6 py-3 bg-neutral-900 text-white font-medium rounded-sm transition-all duration-300 hover:bg-neutral-800;
+  }
+  
+  .btn-premium-outline {
+    @apply px-6 py-3 bg-transparent text-neutral-900 font-medium rounded-sm transition-all duration-300 border border-neutral-900 hover:bg-neutral-900 hover:text-white;
+  }
+  
+  .btn-premium-accent {
+    @apply px-6 py-3 text-white font-medium rounded-sm transition-all duration-300;
+    background-color: var(--primary);
+  }
+  
+  .btn-premium-accent:hover {
+    background-color: var(--primary-hover);
+  }
+  
+  /* Hover effects */
+  .hover-scale {
+    @apply transition-transform duration-300 hover:shadow-premium-hover;
+  }
+  
+  /* Scroll animations */
+  .scroll-trigger {
+    @apply opacity-0 translate-y-8 transition-all duration-700;
+  }
+  
+  .scroll-visible {
+    @apply opacity-100 translate-y-0;
+  }
+  
+  /* Premium card styles like Gyeon */
+  .premium-card {
+    @apply bg-white shadow-card overflow-hidden transition-all duration-300 hover:shadow-premium-hover;
+  }
+  
+  .premium-dark-card {
+    @apply bg-neutral-900 shadow-card overflow-hidden transition-all duration-300 hover:shadow-premium-hover;
+  }
+  
+  /* Hero section */
+  .hero-gradient {
+    background: linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 100%);
+  }
+  
+  /* Typography */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-oxanium font-bold tracking-tight text-neutral-900;
+  }
+  
+  /* Container with better spacing like Gyeon */
+  .container-premium {
+    @apply container mx-auto px-4 md:px-8 max-w-7xl;
+  }
+  
+  /* Separator */
+  .separator {
+    @apply w-12 h-0.5 my-6;
+    background-color: #171717; /* neutral-900 */
+  }
+  
+  .separator-white {
+    background-color: white;
+  }
+  
+  /* Scroll to top button styles */
+  @media (min-width: 768px) {
+    .scroll-to-top {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+    }
+    
+    body.scrolled .scroll-to-top {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Google Places Autocomplete dropdown styles - MUST appear above dialogs/modals */
+.pac-container {
+  z-index: 99999 !important;
+  border-radius: 8px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+  margin-top: 4px !important;
+  font-family: inherit !important;
+  pointer-events: auto !important;
+}
+
+.pac-item {
+  cursor: pointer !important;
+  padding: 8px 12px !important;
+  border-top: 1px solid hsl(var(--border)) !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  pointer-events: auto !important;
+}
+
+.pac-item:hover {
+  background-color: hsl(var(--accent)) !important;
+}
+
+.pac-item-selected,
+.pac-item-selected:hover {
+  background-color: hsl(var(--accent)) !important;
+}
+
+.pac-icon {
+  margin-top: 4px !important;
+}
+
+.pac-item-query {
+  font-size: 14px !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.pac-matched {
+  font-weight: 600 !important;
+}

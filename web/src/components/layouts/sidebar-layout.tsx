@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useLocation } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
@@ -472,7 +473,28 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
   // Dashboard, User Management, Sales Partners, Lead Management. The other
   // stage modules stay in the codebase but are hidden until they're ported.
   const SCOPED_MODULE_IDS = ['dashboard', 'user-management', 'sales-partners', 'lead-management', 'leads', 'webforms'];
-  const modules = getModulesForRole().filter((m) => SCOPED_MODULE_IDS.includes(m.id));
+  const baseModules = getModulesForRole().filter((m) => SCOPED_MODULE_IDS.includes(m.id));
+
+  // VAS (SetuPPF) tabs, surfaced inside Pulse for VAS-enabled partner/detailer/
+  // installer users (single login). /api/vas/me reports enabled + the tab set.
+  const { data: vasMe } = useQuery<any>({ queryKey: ['/api/vas/me'], enabled: !!user });
+  const VAS_TAB_META: Record<string, { name: string; path: string }> = {
+    'work-orders': { name: 'Work Orders', path: '/erp/vas/work-orders' },
+    'job-cards': { name: 'Job Cards', path: '/erp/vas/job-cards' },
+    'allocations': { name: 'Allocation', path: '/erp/vas/allocations' },
+  };
+  const vasModules =
+    vasMe?.enabled && Array.isArray(vasMe.tabs)
+      ? vasMe.tabs
+          .filter((t: string) => VAS_TAB_META[t])
+          .map((t: string) => ({
+            id: `vas-${t}`,
+            name: VAS_TAB_META[t].name,
+            icon: <Package className="w-5 h-5 mr-3" />,
+            path: VAS_TAB_META[t].path,
+          }))
+      : [];
+  const modules = [...baseModules, ...vasModules];
 
   const getRoleTitle = () => {
     switch (user?.role) {

@@ -1,2 +1,4 @@
-2026/07/21 17:37:56 P91 Pulse API listening on :8080 (env=development)
-2026/07/21 17:39:15 VAS webhook DRY-RUN (PPF_SETU_WEBHOOK_URL/PULSE_WEBHOOK_SECRET not set): activate x-pulse-signature=ddf9cb2d2cc8d6652434c2d190dda65c9b69568bdfe7cfe812f6b8bc6b1a5359 body={"action":"activate","user":{"name":"Test Onboard Detailer","username":"9111122233","phone":"9111122233","email":"","role":"STUDIO","partnerId":"1d7da572-be07-415b-8139-016423c3087a"},"timestamp":"2026-07-21T12:09:15Z"}
+2026/07/22 09:09:35 VAS gateway enabled → http://localhost:5000
+2026/07/22 09:09:35 static: serving frontend from ./web/dist
+2026/07/22 09:09:35 P91 Pulse API listening on :8080 (env=development)
+2026/07/22 09:27:10 server stopped

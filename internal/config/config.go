@@ -19,6 +19,11 @@ type Config struct {
 	JWTAccessTTL  time.Duration
 	JWTRefreshTTL time.Duration
 	CORSOrigin    string
+
+	// VAS (SetuPPF) integration — empty base URL disables the VAS features.
+	VASBaseURL string // VAS API base (e.g. http://localhost:5000)
+	VASWebURL  string // VAS website for the central-login redirect of VAS-native users
+	VASSecret  string // shared HMAC secret (PULSE_WEBHOOK_SECRET), same on both apps
 }
 
 // Load reads configuration from the process environment, loading a .env file
@@ -34,6 +39,9 @@ func Load() (*Config, error) {
 		Env:         getOr("ENV", "development"),
 		JWTSecret:   os.Getenv("JWT_SECRET"),
 		CORSOrigin:  getOr("CORS_ORIGIN", "http://localhost:5173"),
+		VASBaseURL:  os.Getenv("PPF_SETU_BASE_URL"),
+		VASWebURL:   getOr("PPF_SETU_WEB_URL", "https://pulsevas.p91india.com"),
+		VASSecret:   os.Getenv("PULSE_WEBHOOK_SECRET"),
 	}
 
 	if cfg.DatabaseURL == "" {

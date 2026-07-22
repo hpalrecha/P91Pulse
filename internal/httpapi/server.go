@@ -10,6 +10,7 @@ import (
 
 	"github.com/p91/pulse/internal/auth"
 	"github.com/p91/pulse/internal/db/sqlc"
+	"github.com/p91/pulse/internal/vas"
 )
 
 // Server holds the dependencies shared by all handlers.
@@ -18,14 +19,16 @@ type Server struct {
 	pool       *pgxpool.Pool
 	auth       *auth.Manager
 	corsOrigin string
+	vas        *vas.Gateway
 }
 
-func NewServer(pool *pgxpool.Pool, authMgr *auth.Manager, corsOrigin string) *Server {
+func NewServer(pool *pgxpool.Pool, authMgr *auth.Manager, corsOrigin string, vasGW *vas.Gateway) *Server {
 	return &Server{
 		q:          sqlc.New(pool),
 		pool:       pool,
 		auth:       authMgr,
 		corsOrigin: corsOrigin,
+		vas:        vasGW,
 	}
 }
 
@@ -59,6 +62,10 @@ func (s *Server) Router() http.Handler {
 			// Frontend-facing (ported p91pulse_stage) contract under /api/erp.
 			r.Get("/erp/me", s.handleErpMe)
 			r.Get("/erp/my-coverage", s.handleMyCoverage)
+
+			// VAS (SetuPPF) embedded tabs — SSO proxy, role-scoped.
+			r.Get("/vas/me", s.handleVASMe)
+			r.HandleFunc("/vas/*", s.handleVASProxy)
 
 			// Dashboard
 			r.Get("/erp/admin/dashboard-stats", s.handleDashboardStats)

@@ -49,6 +49,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	row, err := s.q.GetUserForLogin(r.Context(), identifier)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			// Not a Pulse user — they may be a VAS-native user (OEM/dealership/
+			// salesperson/showroom). Central login: if VAS authenticates them,
+			// send them to the VAS website instead of rejecting.
+			if s.vas != nil && s.vas.Enabled() {
+				if _, vtok, verr := s.vas.Login(identifier, req.Password); verr == nil && vtok != "" {
+					writeJSON(w, http.StatusOK, map[string]any{
+						"redirectToVas": s.vas.WebURL(),
+						"message":       "Redirecting you to Pulse VAS…",
+					})
+					return
+				}
+			}
 			writeError(w, http.StatusUnauthorized, "invalid credentials")
 			return
 		}

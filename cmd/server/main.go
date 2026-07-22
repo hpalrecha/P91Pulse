@@ -15,6 +15,7 @@ import (
 	"github.com/p91/pulse/internal/config"
 	"github.com/p91/pulse/internal/db"
 	"github.com/p91/pulse/internal/httpapi"
+	"github.com/p91/pulse/internal/vas"
 )
 
 func main() {
@@ -31,7 +32,11 @@ func main() {
 	defer pool.Close()
 
 	authMgr := auth.NewManager(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
-	srv := httpapi.NewServer(pool, authMgr, cfg.CORSOrigin)
+	vasGW := vas.New(cfg.VASBaseURL, cfg.VASWebURL, cfg.VASSecret)
+	if vasGW.Enabled() {
+		log.Printf("VAS gateway enabled → %s", cfg.VASBaseURL)
+	}
+	srv := httpapi.NewServer(pool, authMgr, cfg.CORSOrigin, vasGW)
 
 	httpServer := &http.Server{
 		Addr:              ":" + cfg.Port,

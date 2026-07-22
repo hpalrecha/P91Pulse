@@ -46,11 +46,18 @@ export default function LoginPage() {
       );
       
       const userData = await response.json();
-      
+
+      // Central login: a VAS-native user (OEM/dealership/salesperson/showroom)
+      // isn't a Pulse user — send them to the VAS website.
+      if (userData.redirectToVas) {
+        window.location.href = userData.redirectToVas;
+        return;
+      }
+
       if (!userData.success && userData.message) {
         throw new Error(userData.message);
       }
-      
+
       const user = userData.data || userData;
 
       // Drop any cached queries from a previous session in this browser so the new

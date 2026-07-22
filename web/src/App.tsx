@@ -103,6 +103,9 @@ const WarrantyCardPage = lazy(() => import("@/pages/erp/warranty-card-page"));
 const WarrantyPrintPage = lazy(() => import("@/pages/erp/warranty-print"));
 const WarrantyCardPublicPage = lazy(() => import("@/pages/warranty/WarrantyCardPublicPage"));
 const OnboardPage = lazy(() => import("@/pages/onboard"));
+const VASWorkOrders = lazy(() => import("@/pages/erp/vas/work-orders"));
+const VASJobCards = lazy(() => import("@/pages/erp/vas/job-cards"));
+const VASAllocations = lazy(() => import("@/pages/erp/vas/allocations"));
 
 import "./lib/fonts.css";
 
@@ -221,6 +224,17 @@ function Router() {
         </SidebarLayout>
       </Route>
       
+      {/* VAS (SetuPPF) embedded tabs — available to any VAS-enabled Pulse user */}
+      <Route path="/erp/vas/:rest*">
+        <SidebarLayout activeModule={location.split('/').pop()}>
+          <Switch>
+            <Route path="/erp/vas/work-orders" component={VASWorkOrders} />
+            <Route path="/erp/vas/job-cards" component={VASJobCards} />
+            <Route path="/erp/vas/allocations" component={VASAllocations} />
+          </Switch>
+        </SidebarLayout>
+      </Route>
+
       <Route path="/erp/admin/:rest*">
         <SidebarLayout activeModule={location.split('/').pop()}>
           <Switch>

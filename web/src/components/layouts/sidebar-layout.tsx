@@ -40,6 +40,8 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // VAS tabs query — declared here (before any early return) per Rules of Hooks.
+  const { data: vasMe } = useQuery<any>({ queryKey: ['/api/vas/me'] });
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -477,7 +479,8 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
 
   // VAS (SetuPPF) tabs, surfaced inside Pulse for VAS-enabled partner/detailer/
   // installer users (single login). /api/vas/me reports enabled + the tab set.
-  const { data: vasMe } = useQuery<any>({ queryKey: ['/api/vas/me'], enabled: !!user });
+  // NOTE: the useQuery hook itself lives at the top of the component (above the
+  // early `if (loading)` return) — Rules of Hooks. Only the derivation is here.
   const VAS_TAB_META: Record<string, { name: string; path: string }> = {
     'work-orders': { name: 'Work Orders', path: '/erp/vas/work-orders' },
     'job-cards': { name: 'Job Cards', path: '/erp/vas/job-cards' },

@@ -22,6 +22,36 @@ import (
 // (initialPassword) so the admin UI can hand it to the person — rotate on
 // first login later.
 
+// roleForPartnerType maps an ERP Sales Partner Type to the Pulse role code.
+// Detailer/Installer/Partner are VAS-eligible; Partner uses the existing
+// "sales_partner" role (the VAS tab map treats sales_partner == partner:
+// work-orders + job-cards + allocations). Unknown types default to detailer.
+func roleForPartnerType(ptype string) string {
+	switch ptype {
+	case "Detailer":
+		return "detailer"
+	case "Installer":
+		return "installer"
+	case "Partner":
+		return "sales_partner"
+	case "Distributor":
+		return "distributor"
+	default:
+		return "detailer"
+	}
+}
+
+// vasEligibleRole reports whether a provisioned role should get VAS access
+// (ppfSetuAccess) so its holder can reach the embedded VAS tabs.
+func vasEligibleRole(roleCode string) bool {
+	switch roleCode {
+	case "detailer", "installer", "sales_partner":
+		return true
+	default:
+		return false
+	}
+}
+
 // roleForCustomerGroup implements the spec's group→actor mapping:
 // CAD = distributor · Installers = installer · everything else = detailer.
 func roleForCustomerGroup(group string) string {
@@ -114,12 +144,17 @@ func (s *Syncer) provisionOne(ctx context.Context, name, mobile, email, roleCode
 	if err != nil {
 		return "", err
 	}
-	meta, _ := json.Marshal(map[string]any{
+	metaMap := map[string]any{
 		"provisioned":     true,
 		"provisionSource": source, // "erp-customer" | "erp-sales-partner"
 		"erpRef":          erpRef,
 		"initialPassword": pw, // surfaced in the admin UI; rotate on first login
-	})
+	}
+	if vasEligibleRole(roleCode) {
+		// VAS-eligible roles authenticate via VAS delegation and see VAS tabs.
+		metaMap["ppfSetuAccess"] = true
+	}
+	meta, _ := json.Marshal(metaMap)
 	var id string
 	err = s.pool.QueryRow(ctx, `
 INSERT INTO users (role_id, name, email, phone, username, password_hash, status, is_active, metadata)
@@ -155,10 +190,7 @@ FROM sales_partners WHERE user_id IS NULL`)
 	}
 	rows.Close()
 	for _, p := range partners {
-		role := "detailer"
-		if p.ptype == "Distributor" {
-			role = "distributor"
-		}
+		role := roleForPartnerType(p.ptype)
 		uid, perr := s.provisionOne(ctx, p.name, p.mobile, p.email, role, "erp-sales-partner", p.name)
 		if perr != nil {
 			log.Printf("provision partner %s: %v", p.name, perr)

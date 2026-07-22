@@ -149,15 +149,16 @@ func (g *Gateway) Login(identifier, password string) (VASUser, string, error) {
 	var out struct {
 		Token string `json:"token"`
 		User  struct {
-			ID    string `json:"id"`
-			Role  string `json:"role"`
-			Name  string `json:"name"`
-			Email string `json:"email"`
-			Phone string `json:"phone"`
+			ID        string `json:"id"`
+			Role      string `json:"role"`
+			Name      string `json:"name"`
+			Email     string `json:"email"`
+			Phone     string `json:"phone"`
+			PartnerID string `json:"partnerId"`
 		} `json:"user"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return VASUser{}, "", err
 	}
-	return VASUser{ID: out.User.ID, Role: out.User.Role, Name: out.User.Name, Email: out.User.Email, Phone: out.User.Phone}, out.Token, nil
+	return VASUser{ID: out.User.ID, Role: out.User.Role, Name: out.User.Name, Email: out.User.Email, Phone: out.User.Phone, PartnerID: out.User.PartnerID}, out.Token, nil
 }

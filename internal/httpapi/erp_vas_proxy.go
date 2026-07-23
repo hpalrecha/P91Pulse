@@ -12,14 +12,14 @@ import (
 )
 
 // vasTabsForRole returns the VAS tabs a Pulse role sees inside Pulse
-// (owner spec): partner = WorkOrder+JobCard+Allocation, detailer = WO+Job,
-// installer = Job. Empty slice = no VAS tabs.
+// (owner spec): partner = WorkOrder+JobCard+Allocation+Staff, detailer =
+// WO+Job+Staff, installer = Job (no staff). Empty slice = no VAS tabs.
 func vasTabsForRole(roleFE string) []string {
 	switch roleFE {
 	case "sales_partner", "partner":
-		return []string{"work-orders", "job-cards", "allocations"}
+		return []string{"work-orders", "job-cards", "allocations", "staff"}
 	case "detailer":
-		return []string{"work-orders", "job-cards"}
+		return []string{"work-orders", "job-cards", "staff"}
 	case "installer":
 		return []string{"job-cards"}
 	default:
@@ -60,6 +60,15 @@ func tabForVASPath(rest string) string {
 		return "job-cards"
 	case strings.HasPrefix(rest, "allocations"):
 		return "allocations"
+	case strings.HasPrefix(rest, "partners/"):
+		// Only the /staff sub-resource of a partner is exposed as a tab. Every
+		// other partners/<id>/... subpath stays disallowed so the allow-list
+		// doesn't leak (e.g. partners/<id>/showrooms, .../pulse-invite).
+		parts := strings.SplitN(rest, "/", 3) // ["partners", "<id>", "staff..."]
+		if len(parts) == 3 && (parts[2] == "staff" || strings.HasPrefix(parts[2], "staff/")) {
+			return "staff"
+		}
+		return ""
 	default:
 		return ""
 	}
@@ -85,6 +94,29 @@ func (s *Server) handleVASMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "tabs": tabs, "vasUser": vu})
+}
+
+// handleVASSSO — GET /api/vas/sso : mints a per-user VAS JWT for the iframe
+// embed to auto-authenticate against the real VAS app. Never 500s — a Pulse user
+// with no VAS account (or VAS unreachable) simply reports enabled:false.
+func (s *Server) handleVASSSO(w http.ResponseWriter, r *http.Request) {
+	if s.vas == nil || !s.vas.Enabled() {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		return
+	}
+	p := principalFrom(r.Context())
+	identifier, _, enabled := s.vasIdentity(r.Context(), p.UserID)
+	if !enabled || identifier == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		return
+	}
+	token, _, err := s.vas.MintToken(identifier)
+	if err != nil {
+		// A detailer with no VAS account yet is normal — not an error.
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "error": "not linked in VAS"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "token": token, "webUrl": s.vas.WebURL()})
 }
 
 // handleVASProxy — the allow-listed passthrough for /api/vas/*.

@@ -48,9 +48,17 @@ export default function LoginPage() {
       const userData = await response.json();
 
       // Central login: a VAS-native user (OEM/dealership/salesperson/showroom)
-      // isn't a Pulse user — send them to the VAS website.
+      // isn't a Pulse user — send them to the VAS website. When Pulse also
+      // handed back a VAS session token, pass it in the URL FRAGMENT (never a
+      // query string, so it isn't sent to servers or written to access logs) so
+      // VAS logs them in seamlessly at its /sso landing route.
       if (userData.redirectToVas) {
-        window.location.href = userData.redirectToVas;
+        const base = String(userData.redirectToVas).replace(/\/+$/, '');
+        if (userData.vasToken) {
+          window.location.href = `${base}/sso#sso_token=${encodeURIComponent(userData.vasToken)}`;
+        } else {
+          window.location.href = userData.redirectToVas;
+        }
         return;
       }
 

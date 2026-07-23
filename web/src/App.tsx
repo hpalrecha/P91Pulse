@@ -106,6 +106,7 @@ const OnboardPage = lazy(() => import("@/pages/onboard"));
 const VASWorkOrders = lazy(() => import("@/pages/erp/vas/work-orders"));
 const VASJobCards = lazy(() => import("@/pages/erp/vas/job-cards"));
 const VASAllocations = lazy(() => import("@/pages/erp/vas/allocations"));
+const VASStaff = lazy(() => import("@/pages/erp/vas/staff"));
 
 import "./lib/fonts.css";
 
@@ -231,6 +232,7 @@ function Router() {
             <Route path="/erp/vas/work-orders" component={VASWorkOrders} />
             <Route path="/erp/vas/job-cards" component={VASJobCards} />
             <Route path="/erp/vas/allocations" component={VASAllocations} />
+            <Route path="/erp/vas/staff" component={VASStaff} />
           </Switch>
         </SidebarLayout>
       </Route>

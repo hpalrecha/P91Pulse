@@ -485,6 +485,7 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
     'work-orders': { name: 'Work Orders', path: '/erp/vas/work-orders' },
     'job-cards': { name: 'Job Cards', path: '/erp/vas/job-cards' },
     'allocations': { name: 'Allocation', path: '/erp/vas/allocations' },
+    'staff': { name: 'Staff Management', path: '/erp/vas/staff' },
   };
   const vasModules =
     vasMe?.enabled && Array.isArray(vasMe.tabs)
@@ -497,7 +498,38 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
             path: VAS_TAB_META[t].path,
           }))
       : [];
-  const modules = [...baseModules, ...vasModules];
+  // Renders one nav item. `onNavigate` lets the mobile drawer close on click.
+  const renderModule = (module: any, onNavigate?: () => void) => (
+    <div key={module.id} className="flex items-center gap-1">
+      <Button
+        variant={activeModule === module.id || location === module.path ? 'default' : 'ghost'}
+        className="flex-1 justify-start text-left"
+        onClick={() => {
+          setLocation(module.path);
+          onNavigate?.();
+        }}
+      >
+        {module.icon}
+        {module.name}
+      </Button>
+      {/* Dev-only "i": notes + meaning for this sidebar tab (DB-backed). */}
+      <InfoDot widgetId={`tab:${module.path}`} fallbackLabel={module.name} className="shrink-0 p-1" />
+    </div>
+  );
+
+  // Renders the base modules plus, when the user has VAS access, a divider +
+  // "VAS" section header above the VAS items.
+  const renderNav = (onNavigate?: () => void) => (
+    <>
+      {baseModules.map((m) => renderModule(m, onNavigate))}
+      {vasModules.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+          <p className="px-3 text-xs font-semibold uppercase tracking-wider text-gray-400">VAS</p>
+          {vasModules.map((m) => renderModule(m, onNavigate))}
+        </div>
+      )}
+    </>
+  );
 
   const getRoleTitle = () => {
     switch (user?.role) {
@@ -548,27 +580,7 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
             
             <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
               <nav className="flex-1 px-3 space-y-2">
-                {modules.map((module) => (
-                  <div key={module.id} className="flex items-center gap-1">
-                    <Button
-                      variant={
-                        activeModule === module.id || location === module.path
-                          ? "default"
-                          : "ghost"
-                      }
-                      className="flex-1 justify-start text-left"
-                      onClick={() => {
-                        setLocation(module.path);
-                        setIsMobileSidebarOpen(false);
-                      }}
-                    >
-                      {module.icon}
-                      {module.name}
-                    </Button>
-                    {/* Dev-only "i": notes + meaning for this sidebar tab (DB-backed). */}
-                    <InfoDot widgetId={`tab:${module.path}`} fallbackLabel={module.name} className="shrink-0 p-1" />
-                  </div>
-                ))}
+                {renderNav(() => setIsMobileSidebarOpen(false))}
               </nav>
             </div>
             
@@ -600,24 +612,7 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
         
         <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
           <nav className="flex-1 px-3 space-y-2">
-            {modules.map((module) => (
-              <div key={module.id} className="flex items-center gap-1">
-                <Button
-                  variant={
-                    activeModule === module.id || location === module.path
-                      ? "default"
-                      : "ghost"
-                  }
-                  className="flex-1 justify-start text-left"
-                  onClick={() => setLocation(module.path)}
-                >
-                  {module.icon}
-                  {module.name}
-                </Button>
-                {/* Dev-only "i": notes + meaning for this sidebar tab (DB-backed). */}
-                <InfoDot widgetId={`tab:${module.path}`} fallbackLabel={module.name} className="shrink-0 p-1" />
-              </div>
-            ))}
+            {renderNav()}
           </nav>
         </div>
         

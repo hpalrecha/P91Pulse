@@ -63,9 +63,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 					feRole, pulseOrigin := vasRoleToPulseFE(vu.Role)
 					if !pulseOrigin {
 						// VAS-native user (OEM/dealership/salesperson/showroom):
-						// send them to the VAS website instead of rejecting.
+						// send them to the VAS website ALREADY logged in — hand
+						// off the VAS JWT so the client can establish a session
+						// without a second login (consumed via URL fragment).
 						writeJSON(w, http.StatusOK, map[string]any{
 							"redirectToVas": s.vas.WebURL(),
+							"vasToken":      vtok,
 							"message":       "Redirecting you to Pulse VAS…",
 						})
 						return

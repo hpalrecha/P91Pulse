@@ -65,6 +65,7 @@ func (s *Server) Router() http.Handler {
 
 			// VAS (SetuPPF) embedded tabs — SSO proxy, role-scoped.
 			r.Get("/vas/me", s.handleVASMe)
+			r.Get("/vas/sso", s.handleVASSSO)
 			r.HandleFunc("/vas/*", s.handleVASProxy)
 
 			// Dashboard

@@ -1,3 +1,4 @@
 2026/07/22 14:43:47 VAS gateway enabled → http://localhost:5000
 2026/07/22 14:43:48 static: serving frontend from ./web/dist
 2026/07/22 14:43:48 P91 Pulse API listening on :8080 (env=development)
+exit status 1

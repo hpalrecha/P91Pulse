@@ -13,3 +13,4 @@ AggregateError [ECONNREFUSED]:
     at afterConnectMultiple (node:net:1715:7)
 [2m2:47:44 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layouts/sidebar-layout.tsx, /src/index.css[22m
 [2m2:47:55 pm[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layouts/sidebar-layout.tsx, /src/index.css[22m
+ ELIFECYCLE  Command failed with exit code 1.

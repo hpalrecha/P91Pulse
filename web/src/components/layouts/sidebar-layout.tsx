@@ -21,7 +21,8 @@ import {
   Car,
   ShoppingCart,
   Gift,
-  Sliders
+  Sliders,
+  MapPin
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -157,15 +158,21 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
           icon: <Users className="w-5 h-5 mr-3" />,
           path: '/erp/admin/user-management'
         },
-        { 
-          id: 'sales-partners', 
-          name: 'Sales Partner Management', 
+        {
+          id: 'sales-partners',
+          name: 'Sales Partner Management',
           icon: <Users className="w-5 h-5 mr-3" />,
           path: '/erp/admin/sales-partners'
         },
-        { 
-          id: 'management', 
-          name: 'Management', 
+        {
+          id: 'territory-management',
+          name: 'Territory Management',
+          icon: <MapPin className="w-5 h-5 mr-3" />,
+          path: '/erp/admin/territory-management'
+        },
+        {
+          id: 'management',
+          name: 'Management',
           icon: <Sliders className="w-5 h-5 mr-3" />,
           path: '/erp/admin/management'
         },
@@ -474,7 +481,7 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
   // P91pulse scope (docs/LEAD-FLOW-SPEC.md): only the target tabs are live —
   // Dashboard, User Management, Sales Partners, Lead Management. The other
   // stage modules stay in the codebase but are hidden until they're ported.
-  const SCOPED_MODULE_IDS = ['dashboard', 'user-management', 'sales-partners', 'lead-management', 'leads', 'webforms'];
+  const SCOPED_MODULE_IDS = ['dashboard', 'user-management', 'sales-partners', 'territory-management', 'lead-management', 'leads', 'webforms'];
   const baseModules = getModulesForRole().filter((m) => SCOPED_MODULE_IDS.includes(m.id));
 
   // VAS (SetuPPF) tabs, surfaced inside Pulse for VAS-enabled partner/detailer/
@@ -486,6 +493,7 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
     'job-cards': { name: 'Job Cards', path: '/erp/vas/job-cards' },
     'allocations': { name: 'Allocation', path: '/erp/vas/allocations' },
     'staff': { name: 'Staff Management', path: '/erp/vas/staff' },
+    'admin-console': { name: 'VAS Admin', path: '/erp/vas/admin-console' },
   };
   const vasModules =
     vasMe?.enabled && Array.isArray(vasMe.tabs)

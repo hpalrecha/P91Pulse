@@ -37,20 +37,24 @@ func leadScope(p *rbac.Principal, args *[]any) string {
   OR c.custom_pincode IN (SELECT pk.pincode FROM sales_partner_pincodes pk
       JOIN sales_partners sp ON sp.id = pk.partner_id WHERE sp.user_id = $%d))`, n, n)
 	case "salesperson":
-		// The salesperson works the unassigned queue (B2C enrichment §3).
-		return " AND c.assignment_status <> 'Assigned'"
+		// The salesperson works the unassigned queue (B2C enrichment §3). Any
+		// salesperson_coverage they hold ADDS to that (does not replace it).
+		*args = append(*args, p.UserID)
+		n := len(*args)
+		return " AND (c.assignment_status <> 'Assigned' OR " + coverageAdditive(n) + ")"
 	case "rsm":
 		// Territory visibility via user_states ('*' = all India). A user with no
 		// states configured currently sees everything (dev default — tighten once
-		// state allocation is administered).
+		// state allocation is administered). salesperson_coverage adds on top.
 		*args = append(*args, p.UserID)
 		n := len(*args)
 		return fmt.Sprintf(" AND (NOT EXISTS (SELECT 1 FROM user_states us WHERE us.user_id = $%d)"+
-			" OR EXISTS (SELECT 1 FROM user_states us WHERE us.user_id = $%d AND (us.state = '*' OR us.state = c.state)))", n, n)
+			" OR EXISTS (SELECT 1 FROM user_states us WHERE us.user_id = $%d AND (us.state = '*' OR us.state = c.state))"+
+			" OR %s)", n, n, coverageAdditive(n))
 	case "asm":
 		// ASM inherits his distributor's coverage (spec §4): leads assigned to
 		// that distributor OR falling in the distributor's partner pincode set;
-		// user_states works as an additional manual grant.
+		// user_states works as an additional manual grant; coverage adds on top.
 		*args = append(*args, p.UserID)
 		n := len(*args)
 		return fmt.Sprintf(` AND (
@@ -59,10 +63,82 @@ func leadScope(p *rbac.Principal, args *[]any) string {
       SELECT pc.pincode FROM sales_partner_pincodes pc
       JOIN sales_partners sp ON sp.id = pc.partner_id
       WHERE sp.user_id = (SELECT parent_user_id FROM users WHERE id = $%d))
-  OR EXISTS (SELECT 1 FROM user_states us WHERE us.user_id = $%d AND (us.state = '*' OR us.state = c.state)))`, n, n, n)
+  OR EXISTS (SELECT 1 FROM user_states us WHERE us.user_id = $%d AND (us.state = '*' OR us.state = c.state))
+  OR %s)`, n, n, n, coverageAdditive(n))
 	default:
 		return " AND false"
 	}
+}
+
+// coverageAdditive returns a boolean SQL fragment (no leading AND/OR) granting a
+// user visibility of leads that match their salesperson_coverage, rolled up over
+// their management downline (users.parent_user_id, recursive). It contributes
+// nothing unless the user (or a report) actually holds coverage rows in a
+// filterable dimension, so callers OR it onto a role's existing predicate.
+//
+// Dimensions (each applied ONLY if the downline holds rows for it; no rows =
+// unrestricted on that dimension):
+//   - territory: an assigned node id is expanded to ALL descendants
+//     (region→state→city) via territories.parent_id, then a lead matches by
+//     pincode (pincode_territory under those nodes) OR by name — because ~85% of
+//     leads have no pincode, only a state/territory string. state-level node
+//     names match c.state, city-level names match c.city, and either match
+//     c.territory.
+//   - brand: c.brand ∈ assigned brands.
+//   - customer_group: c.customer_group ∈ assigned groups.
+//
+// company is stored/assignable but NOT filtered here (customers has no company
+// column yet); it is excluded from the "has any coverage" gate too so a
+// company-only assignment doesn't accidentally grant all-leads visibility.
+//
+// meIdx is the $-placeholder index of the user id (already appended to args);
+// the same placeholder is reused throughout — everything else is a literal, so
+// the fragment is injection-safe.
+func coverageAdditive(meIdx int) string {
+	me := fmt.Sprintf("$%d", meIdx)
+	// The management downline (self ∪ recursive reports).
+	team := fmt.Sprintf("WITH RECURSIVE team AS (SELECT %s::uuid AS id "+
+		"UNION ALL SELECT u.id FROM users u JOIN team ON u.parent_user_id = team.id)", me)
+	// team + the recursive descendants of the downline's assigned territory nodes.
+	teamSub := fmt.Sprintf("WITH RECURSIVE team AS (SELECT %s::uuid AS id "+
+		"UNION ALL SELECT u.id FROM users u JOIN team ON u.parent_user_id = team.id), "+
+		"sub AS ("+
+		"SELECT t.id, t.level, t.name FROM territories t "+
+		"WHERE t.id IN (SELECT sc.value::uuid FROM salesperson_coverage sc "+
+		"WHERE sc.user_id IN (SELECT id FROM team) AND sc.dimension = 'territory') "+
+		"UNION ALL "+
+		"SELECT ch.id, ch.level, ch.name FROM territories ch JOIN sub ON ch.parent_id = sub.id)", me)
+
+	// Gate: only territory/brand/customer_group count as "filterable" coverage.
+	hasAny := fmt.Sprintf("EXISTS (%s SELECT 1 FROM salesperson_coverage sc "+
+		"WHERE sc.user_id IN (SELECT id FROM team) "+
+		"AND sc.dimension IN ('territory','brand','customer_group'))", team)
+
+	territory := fmt.Sprintf("("+
+		"NOT EXISTS (%s SELECT 1 FROM salesperson_coverage sc "+
+		"WHERE sc.user_id IN (SELECT id FROM team) AND sc.dimension = 'territory')"+
+		" OR c.custom_pincode IN (%s SELECT pt.pincode FROM pincode_territory pt "+
+		"WHERE pt.city_territory_id IN (SELECT id FROM sub))"+
+		" OR c.state ILIKE ANY (ARRAY(%s SELECT s.name FROM sub s WHERE s.level = 'state'))"+
+		" OR c.city ILIKE ANY (ARRAY(%s SELECT s.name FROM sub s WHERE s.level = 'city'))"+
+		" OR c.territory ILIKE ANY (ARRAY(%s SELECT s.name FROM sub s WHERE s.level IN ('state','city')))"+
+		")", team, teamSub, teamSub, teamSub, teamSub)
+
+	brand := fmt.Sprintf("("+
+		"NOT EXISTS (%s SELECT 1 FROM salesperson_coverage sc "+
+		"WHERE sc.user_id IN (SELECT id FROM team) AND sc.dimension = 'brand')"+
+		" OR lower(COALESCE(c.brand,'')) IN (%s SELECT lower(sc.value) FROM salesperson_coverage sc "+
+		"WHERE sc.user_id IN (SELECT id FROM team) AND sc.dimension = 'brand')"+
+		")", team, team)
+
+	group := fmt.Sprintf("("+
+		"NOT EXISTS (%s SELECT 1 FROM salesperson_coverage sc "+
+		"WHERE sc.user_id IN (SELECT id FROM team) AND sc.dimension = 'customer_group')"+
+		" OR lower(COALESCE(c.customer_group,'')) IN (%s SELECT lower(sc.value) FROM salesperson_coverage sc "+
+		"WHERE sc.user_id IN (SELECT id FROM team) AND sc.dimension = 'customer_group')"+
+		")", team, team)
+
+	return fmt.Sprintf("(%s AND %s AND %s AND %s)", hasAny, territory, brand, group)
 }
 
 // B2C / B2B classification — the single definition, keyed on the ERP Lead.type

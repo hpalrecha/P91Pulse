@@ -12,7 +12,15 @@ interface SsoResp {
 // auto-authenticated iframe. It mints a per-user VAS JWT through /api/vas/sso and
 // hands it to VAS's /sso landing (URL fragment, never a query string) together
 // with the target route, so VAS logs the user in and deep-links in one hop.
-export default function VasEmbed({ route, title }: { route: string; title?: string }) {
+export default function VasEmbed({
+  route,
+  title,
+  chromeless = true,
+}: {
+  route: string;
+  title?: string;
+  chromeless?: boolean;
+}) {
   const { data, isLoading } = useQuery<SsoResp>({ queryKey: ['/api/vas/sso'] });
 
   if (isLoading || !data) {
@@ -44,9 +52,10 @@ export default function VasEmbed({ route, title }: { route: string; title?: stri
   }
 
   const base = String(data.webUrl).replace(/\/+$/, '');
-  // Deep-link with ?embed=1 so VAS hides its own chrome (sidebar/header/logo)
-  // and shows only the page content inside the Pulse iframe.
-  const embeddedRoute = `${route}?embed=1`;
+  // chromeless (default): embed=1 → VAS hides its own chrome (sidebar/header/
+  // logo) and shows only the page content. Non-chromeless: embed=0 → VAS renders
+  // its FULL nav (used for the super-admin console, which needs VAS navigation).
+  const embeddedRoute = `${route}?embed=${chromeless ? '1' : '0'}`;
   const src = `${base}/sso#sso_token=${encodeURIComponent(data.token)}&redirect=${encodeURIComponent(embeddedRoute)}`;
 
   return (

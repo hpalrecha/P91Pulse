@@ -36,7 +36,7 @@ func main() {
 	if vasGW.Enabled() {
 		log.Printf("VAS gateway enabled → %s", cfg.VASBaseURL)
 	}
-	srv := httpapi.NewServer(pool, authMgr, cfg.CORSOrigin, vasGW)
+	srv := httpapi.NewServer(pool, authMgr, cfg.CORSOrigin, vasGW, cfg.VASAdminIdentifier)
 
 	httpServer := &http.Server{
 		Addr:              ":" + cfg.Port,

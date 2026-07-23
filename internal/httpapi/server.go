@@ -15,20 +15,22 @@ import (
 
 // Server holds the dependencies shared by all handlers.
 type Server struct {
-	q          *sqlc.Queries
-	pool       *pgxpool.Pool
-	auth       *auth.Manager
-	corsOrigin string
-	vas        *vas.Gateway
+	q                  *sqlc.Queries
+	pool               *pgxpool.Pool
+	auth               *auth.Manager
+	corsOrigin         string
+	vas                *vas.Gateway
+	vasAdminIdentifier string // VAS super-admin that Pulse admins embed AS
 }
 
-func NewServer(pool *pgxpool.Pool, authMgr *auth.Manager, corsOrigin string, vasGW *vas.Gateway) *Server {
+func NewServer(pool *pgxpool.Pool, authMgr *auth.Manager, corsOrigin string, vasGW *vas.Gateway, vasAdminIdentifier string) *Server {
 	return &Server{
-		q:          sqlc.New(pool),
-		pool:       pool,
-		auth:       authMgr,
-		corsOrigin: corsOrigin,
-		vas:        vasGW,
+		q:                  sqlc.New(pool),
+		pool:               pool,
+		auth:               authMgr,
+		corsOrigin:         corsOrigin,
+		vas:                vasGW,
+		vasAdminIdentifier: vasAdminIdentifier,
 	}
 }
 
@@ -102,6 +104,21 @@ func (s *Server) Router() http.Handler {
 			r.With(requirePerm("users_rbac", "view")).Get("/erp/sales-partners", s.handleListSalesPartners)
 			r.With(requirePerm("users_rbac", "create")).Post("/erp/invites", s.handleCreateInvite)
 			r.With(requirePerm("users_rbac", "edit")).Patch("/users/{id}/ppf-setu-access", s.handlePpfSetuAccess)
+
+			// Territory Management — hierarchical tree + pincode map + salesperson
+			// coverage. Reads gated view, writes gated assign on territories_brands.
+			r.With(requirePerm("territories_brands", "view")).Get("/erp/territory-tree", s.handleTerritoryTree)
+			r.With(requirePerm("territories_brands", "assign")).Post("/erp/territory-tree", s.handleCreateTerritory)
+			r.With(requirePerm("territories_brands", "assign")).Put("/erp/territory-tree/{id}", s.handleUpdateTerritory)
+			r.With(requirePerm("territories_brands", "assign")).Delete("/erp/territory-tree/{id}", s.handleDeleteTerritory)
+			r.With(requirePerm("territories_brands", "view")).Get("/erp/pincode-territory", s.handleListPincodeTerritory)
+			r.With(requirePerm("territories_brands", "assign")).Put("/erp/pincode-territory", s.handleUpsertPincodeTerritory)
+			r.With(requirePerm("territories_brands", "assign")).Delete("/erp/pincode-territory/{pincode}", s.handleDeletePincodeTerritory)
+			r.With(requirePerm("territories_brands", "view")).Get("/erp/salesperson-coverage/{userId}", s.handleGetSalespersonCoverage)
+			r.With(requirePerm("territories_brands", "assign")).Put("/erp/salesperson-coverage/{userId}", s.handlePutSalespersonCoverage)
+			r.With(requirePerm("territories_brands", "assign")).Delete("/erp/salesperson-coverage/{userId}", s.handleDeleteSalespersonCoverage)
+			r.With(requirePerm("territories_brands", "view")).Get("/erp/customer-groups", s.handleListCustomerGroups)
+			r.With(requirePerm("territories_brands", "view")).Get("/erp/companies", s.handleListCompanies)
 
 			// Lead management (B2C flow)
 			r.Route("/erp/customers", func(r chi.Router) {

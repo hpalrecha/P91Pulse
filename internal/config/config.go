@@ -24,6 +24,9 @@ type Config struct {
 	VASBaseURL string // VAS API base (e.g. http://localhost:5000)
 	VASWebURL  string // VAS website for the central-login redirect of VAS-native users
 	VASSecret  string // shared HMAC secret (PULSE_WEBHOOK_SECRET), same on both apps
+	// VAS super-admin identifier that Pulse admins embed AS (they have no VAS
+	// account of their own). Empty = admins get no VAS console.
+	VASAdminIdentifier string
 }
 
 // Load reads configuration from the process environment, loading a .env file
@@ -42,6 +45,8 @@ func Load() (*Config, error) {
 		VASBaseURL:  os.Getenv("PPF_SETU_BASE_URL"),
 		VASWebURL:   getOr("PPF_SETU_WEB_URL", "https://pulsevas.p91india.com"),
 		VASSecret:   os.Getenv("PULSE_WEBHOOK_SECRET"),
+
+		VASAdminIdentifier: os.Getenv("VAS_ADMIN_IDENTIFIER"),
 	}
 
 	if cfg.DatabaseURL == "" {

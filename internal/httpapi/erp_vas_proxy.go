@@ -22,6 +22,9 @@ func vasTabsForRole(roleFE string) []string {
 		return []string{"work-orders", "job-cards", "staff"}
 	case "installer":
 		return []string{"job-cards"}
+	case "admin":
+		// Pulse admins embed the full VAS super-admin console (one tab).
+		return []string{"admin-console"}
 	default:
 		return nil
 	}
@@ -36,6 +39,14 @@ SELECT u.phone, COALESCE(u.email,''), r.code, COALESCE(u.metadata::text,'{}')
 FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = $1`, userID.String()).
 		Scan(&phone, &email, &roleCode, &meta)
 	roleFE = roleToFE(roleCode)
+
+	// Pulse admins have no VAS account of their own — bind them to the
+	// configured VAS super-admin identifier so they embed AS that console.
+	// Config-driven access; no metadata.ppfSetuAccess required.
+	if roleFE == "admin" && s.vasAdminIdentifier != "" {
+		return s.vasAdminIdentifier, roleFE, true
+	}
+
 	var m map[string]any
 	if json.Unmarshal([]byte(meta), &m) == nil {
 		if b, ok := m["ppfSetuAccess"].(bool); ok {

@@ -22,7 +22,8 @@ import {
   ShoppingCart,
   Gift,
   Sliders,
-  MapPin
+  MapPin,
+  Wrench
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -169,6 +170,12 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
           name: 'Territory Management',
           icon: <MapPin className="w-5 h-5 mr-3" />,
           path: '/erp/admin/territory-management'
+        },
+        {
+          id: 'installer-management',
+          name: 'Installer Management',
+          icon: <Wrench className="w-5 h-5 mr-3" />,
+          path: '/erp/admin/installer-management'
         },
         {
           id: 'management',
@@ -481,7 +488,7 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
   // P91pulse scope (docs/LEAD-FLOW-SPEC.md): only the target tabs are live —
   // Dashboard, User Management, Sales Partners, Lead Management. The other
   // stage modules stay in the codebase but are hidden until they're ported.
-  const SCOPED_MODULE_IDS = ['dashboard', 'user-management', 'sales-partners', 'territory-management', 'lead-management', 'leads', 'webforms'];
+  const SCOPED_MODULE_IDS = ['dashboard', 'user-management', 'sales-partners', 'territory-management', 'installer-management', 'lead-management', 'leads', 'webforms'];
   const baseModules = getModulesForRole().filter((m) => SCOPED_MODULE_IDS.includes(m.id));
 
   // VAS (SetuPPF) tabs, surfaced inside Pulse for VAS-enabled partner/detailer/
@@ -493,6 +500,8 @@ export default function SidebarLayout({ children, activeModule }: SidebarLayoutP
     'job-cards': { name: 'Job Cards', path: '/erp/vas/job-cards' },
     'allocations': { name: 'Allocation', path: '/erp/vas/allocations' },
     'staff': { name: 'Staff Management', path: '/erp/vas/staff' },
+    'payouts': { name: 'Payouts & Earnings', path: '/erp/vas/payouts' },
+    'settings': { name: 'Settings', path: '/erp/vas/settings' },
     'admin-console': { name: 'VAS Admin', path: '/erp/vas/admin-console' },
   };
   const vasModules =

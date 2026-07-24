@@ -27,7 +27,7 @@ func leadScope(p *rbac.Principal, args *[]any) string {
   OR c.detailer_id IN (SELECT id FROM users WHERE parent_user_id = $%d)
   OR c.custom_pincode IN (SELECT pk.pincode FROM sales_partner_pincodes pk
       JOIN sales_partners sp ON sp.id = pk.partner_id WHERE sp.user_id = $%d))`, n, n, n)
-	case "detailer", "installer":
+	case "detailer":
 		// A detailer sees leads assigned to them OR whose pincode is in their
 		// (5km-precomputed) pincode set — "the moment it hits, it shows".
 		*args = append(*args, p.UserID)
@@ -36,6 +36,17 @@ func leadScope(p *rbac.Principal, args *[]any) string {
   c.detailer_id = $%d
   OR c.custom_pincode IN (SELECT pk.pincode FROM sales_partner_pincodes pk
       JOIN sales_partners sp ON sp.id = pk.partner_id WHERE sp.user_id = $%d))`, n, n)
+	case "installer":
+		// Same detailer-like scope (assigned leads + partner pincode set) PLUS any
+		// salesperson_coverage assigned via Installer Management (additive/OR, so
+		// coverage only widens visibility and never removes the existing scope).
+		*args = append(*args, p.UserID)
+		n := len(*args)
+		return fmt.Sprintf(` AND (
+  c.detailer_id = $%d
+  OR c.custom_pincode IN (SELECT pk.pincode FROM sales_partner_pincodes pk
+      JOIN sales_partners sp ON sp.id = pk.partner_id WHERE sp.user_id = $%d)
+  OR %s)`, n, n, coverageAdditive(n))
 	case "salesperson":
 		// The salesperson works the unassigned queue (B2C enrichment §3). Any
 		// salesperson_coverage they hold ADDS to that (does not replace it).

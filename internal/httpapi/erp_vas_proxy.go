@@ -12,16 +12,17 @@ import (
 )
 
 // vasTabsForRole returns the VAS tabs a Pulse role sees inside Pulse
-// (owner spec): partner = WorkOrder+JobCard+Allocation+Staff, detailer =
-// WO+Job+Staff, installer = Job (no staff). Empty slice = no VAS tabs.
+// (owner spec): partner = WO+JobCard+Allocation+Staff, detailer = WO+Job+Staff,
+// installer = Job. Payouts & Earnings and Settings are account-level and apply
+// to every VAS partner-type role (partner/detailer/installer). Empty = no tabs.
 func vasTabsForRole(roleFE string) []string {
 	switch roleFE {
 	case "sales_partner", "partner":
-		return []string{"work-orders", "job-cards", "allocations", "staff"}
+		return []string{"work-orders", "job-cards", "allocations", "staff", "payouts", "settings"}
 	case "detailer":
-		return []string{"work-orders", "job-cards", "staff"}
+		return []string{"work-orders", "job-cards", "staff", "payouts", "settings"}
 	case "installer":
-		return []string{"job-cards"}
+		return []string{"job-cards", "payouts", "settings"}
 	case "admin":
 		// Pulse admins embed the full VAS super-admin console (one tab).
 		return []string{"admin-console"}

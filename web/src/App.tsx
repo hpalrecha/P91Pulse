@@ -71,6 +71,7 @@ const AdminRewardClaimsPage = lazy(() => import("@/pages/erp/admin/reward-claims
 const UsersDetailPage = lazy(() => import("@/pages/erp/admin/users-detail"));
 const SalesPartnersPage = lazy(() => import("@/pages/erp/admin/sales-partners"));
 const TerritoryManagementPage = lazy(() => import("@/pages/erp/admin/territory-management"));
+const InstallerManagementPage = lazy(() => import("@/pages/erp/admin/installer-management"));
 const ManagementPage = lazy(() => import("@/pages/erp/admin/management"));
 
 // Distributor ERP modules
@@ -108,6 +109,8 @@ const VASWorkOrders = lazy(() => import("@/pages/erp/vas/work-orders"));
 const VASJobCards = lazy(() => import("@/pages/erp/vas/job-cards"));
 const VASAllocations = lazy(() => import("@/pages/erp/vas/allocations"));
 const VASStaff = lazy(() => import("@/pages/erp/vas/staff"));
+const VASPayouts = lazy(() => import("@/pages/erp/vas/payouts"));
+const VASSettings = lazy(() => import("@/pages/erp/vas/settings"));
 const VASAdminConsole = lazy(() => import("@/pages/erp/vas/admin-console"));
 
 import "./lib/fonts.css";
@@ -235,6 +238,8 @@ function Router() {
             <Route path="/erp/vas/job-cards" component={VASJobCards} />
             <Route path="/erp/vas/allocations" component={VASAllocations} />
             <Route path="/erp/vas/staff" component={VASStaff} />
+            <Route path="/erp/vas/payouts" component={VASPayouts} />
+            <Route path="/erp/vas/settings" component={VASSettings} />
             <Route path="/erp/vas/admin-console" component={VASAdminConsole} />
           </Switch>
         </SidebarLayout>
@@ -256,6 +261,7 @@ function Router() {
             <Route path="/erp/admin/user-management" component={UserManagementPage} />
             <Route path="/erp/admin/sales-partners" component={SalesPartnersPage} />
             <Route path="/erp/admin/territory-management" component={TerritoryManagementPage} />
+            <Route path="/erp/admin/installer-management" component={InstallerManagementPage} />
             <Route path="/erp/admin/management" component={ManagementPage} />
             <Route path="/erp/admin/installer-applications" component={InstallerApplicationsPage} />
             <Route path="/erp/admin/ppf-partner-applications" component={PpfPartnerApplicationsPage} />

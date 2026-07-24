@@ -102,6 +102,10 @@ func (s *Server) Router() http.Handler {
 			})
 			r.With(requirePerm("users_rbac", "view")).Get("/erp/distributors", s.handleErpListDistributors)
 			r.With(requirePerm("users_rbac", "view")).Get("/erp/sales-partners", s.handleListSalesPartners)
+			// Installer Management (reads; CRUD reuses /erp/users/*).
+			r.With(requirePerm("users_rbac", "view")).Get("/erp/installers", s.handleListInstallers)
+			r.With(requirePerm("users_rbac", "view")).Get("/erp/installer-applications", s.handleListInstallerApplications)
+			r.With(requirePerm("users_rbac", "view")).Get("/erp/installer-parents", s.handleListInstallerParents)
 			r.With(requirePerm("users_rbac", "create")).Post("/erp/invites", s.handleCreateInvite)
 			r.With(requirePerm("users_rbac", "edit")).Patch("/users/{id}/ppf-setu-access", s.handlePpfSetuAccess)
 

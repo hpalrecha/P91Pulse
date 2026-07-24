@@ -27,6 +27,11 @@ type Config struct {
 	// VAS super-admin identifier that Pulse admins embed AS (they have no VAS
 	// account of their own). Empty = admins get no VAS console.
 	VASAdminIdentifier string
+
+	// EliteDatabaseURL points at the separate P91Elite (p91elite) Neon DB, read
+	// only for installer_applications. Empty = the Applications tab degrades to
+	// an "unavailable" empty state (never fatal).
+	EliteDatabaseURL string
 }
 
 // Load reads configuration from the process environment, loading a .env file
@@ -47,6 +52,7 @@ func Load() (*Config, error) {
 		VASSecret:   os.Getenv("PULSE_WEBHOOK_SECRET"),
 
 		VASAdminIdentifier: os.Getenv("VAS_ADMIN_IDENTIFIER"),
+		EliteDatabaseURL:   os.Getenv("ELITE_DATABASE_URL"),
 	}
 
 	if cfg.DatabaseURL == "" {

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 )
@@ -74,67 +75,84 @@ ORDER BY u.created_at DESC`)
 // installerApplication is the "form the installer filled" view — the onboarding
 // metadata captured by handleOnboardingSignup, surfaced for review/approval.
 type installerApplication struct {
-	ID            string          `json:"id"`
-	Name          string          `json:"name"`
-	Email         string          `json:"email"`
-	Phone         string          `json:"phone"`
-	Status        string          `json:"status"`
-	BusinessName  string          `json:"businessName"`
-	City          string          `json:"city"`
-	State         string          `json:"state"`
-	PostalCode    string          `json:"postalCode"`
-	Brand         string          `json:"brand"`
-	BusinessType  string          `json:"businessType"`
-	TeamSize      string          `json:"teamSize"`
-	PlaceName     string          `json:"placeName"`
-	OnboardSource string          `json:"onboardSource"`
-	SubmittedAt   time.Time       `json:"submittedAt"`
-	Metadata      json.RawMessage `json:"metadata"`
+	ID                 int64     `json:"id"`
+	Name               string    `json:"name"`
+	Email              string    `json:"email"`
+	Phone              string    `json:"phone"`
+	BusinessName       string    `json:"businessName"`
+	City               string    `json:"city"`
+	PinCode            string    `json:"pinCode"`
+	BusinessType       string    `json:"businessType"`
+	Services           []string  `json:"services"`
+	Website            string    `json:"website"`
+	InstagramHandle    string    `json:"instagramHandle"`
+	StoreArea          string    `json:"storeArea"`
+	GoogleMapsLocation string    `json:"googleMapsLocation"`
+	Message            string    `json:"message"`
+	Status             string    `json:"status"`
+	SubmittedAt        time.Time `json:"submittedAt"`
 }
 
 // handleListInstallerApplications — GET /api/erp/installer-applications.
-// The REAL submissions: role='installer' users, pending first. Replaces the
-// empty /api/installer-applications stub (which is left untouched).
+// The REAL onboarding form submissions live in the SEPARATE P91Elite DB
+// (installer_applications), so this reads the optional Elite pool. If that pool
+// is nil/unavailable it degrades to {data:[], unavailable:true} with HTTP 200 —
+// it never 500s and never falls back to Pulse's own DB.
 func (s *Server) handleListInstallerApplications(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.pool.Query(r.Context(), `
-SELECT u.id::text, u.name, COALESCE(u.email,''), COALESCE(u.phone,''), u.status,
-       COALESCE(u.metadata->>'businessName',''),
-       COALESCE(u.metadata->>'city',''),
-       COALESCE(NULLIF(u.metadata->>'state',''), u.metadata->>'territory', ''),
-       COALESCE(u.metadata->>'postalCode',''),
-       COALESCE(u.metadata->>'brand',''),
-       COALESCE(u.metadata->>'businessType',''),
-       COALESCE(u.metadata->>'teamSize',''),
-       COALESCE(NULLIF(u.metadata->>'placeName',''), u.metadata->>'businessAddress', ''),
-       COALESCE(u.metadata->>'onboardSource',''),
-       u.created_at,
-       COALESCE(u.metadata, '{}'::jsonb)
-FROM users u
-JOIN roles r ON r.id = u.role_id
-WHERE r.code = 'installer'
-ORDER BY (u.status = 'pending') DESC, u.created_at DESC`)
+	if s.elitePool == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"data": []installerApplication{}, "unavailable": true})
+		return
+	}
+	rows, err := s.elitePool.Query(r.Context(), `
+SELECT id, COALESCE(name,''), COALESCE(email,''), COALESCE(phone,''),
+       COALESCE(business_name,''), COALESCE(city,''), COALESCE(pin_code,''),
+       COALESCE(business_type,''), services,
+       COALESCE(website,''), COALESCE(instagram_handle,''), COALESCE(store_area,''),
+       COALESCE(google_maps_location,''), COALESCE(message,''),
+       COALESCE(status::text,''), created_at
+FROM installer_applications
+ORDER BY created_at DESC`)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "list installer applications failed")
+		// Elite reachable-check failed at query time — report unavailable, not 500.
+		log.Printf("elite installer_applications query failed: %v", err)
+		writeJSON(w, http.StatusOK, map[string]any{"data": []installerApplication{}, "unavailable": true})
 		return
 	}
 	defer rows.Close()
 	out := []installerApplication{}
 	for rows.Next() {
 		var a installerApplication
-		var meta []byte
-		if err := rows.Scan(&a.ID, &a.Name, &a.Email, &a.Phone, &a.Status,
-			&a.BusinessName, &a.City, &a.State, &a.PostalCode, &a.Brand,
-			&a.BusinessType, &a.TeamSize, &a.PlaceName, &a.OnboardSource, &a.SubmittedAt, &meta); err != nil {
-			writeError(w, http.StatusInternalServerError, "scan application failed: "+err.Error())
+		var services []byte // json column → raw bytes → []string
+		if err := rows.Scan(&a.ID, &a.Name, &a.Email, &a.Phone,
+			&a.BusinessName, &a.City, &a.PinCode, &a.BusinessType, &services,
+			&a.Website, &a.InstagramHandle, &a.StoreArea, &a.GoogleMapsLocation,
+			&a.Message, &a.Status, &a.SubmittedAt); err != nil {
+			log.Printf("elite installer_applications scan failed: %v", err)
+			writeJSON(w, http.StatusOK, map[string]any{"data": []installerApplication{}, "unavailable": true})
 			return
 		}
-		if len(meta) == 0 {
-			meta = []byte("{}")
-		}
-		a.Metadata = meta
+		a.Services = parseServices(services)
 		out = append(out, a)
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, map[string]any{"data": out, "unavailable": false})
+}
+
+// parseServices tolerates the services column being JSON (["a","b"]), a JSON
+// string of a JSON array, or NULL/empty. Always returns a non-nil slice.
+func parseServices(raw []byte) []string {
+	out := []string{}
+	if len(raw) == 0 {
+		return out
+	}
+	if err := json.Unmarshal(raw, &out); err == nil {
+		return out
+	}
+	// It may be a JSON-encoded string that itself contains a JSON array.
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil && s != "" {
+		_ = json.Unmarshal([]byte(s), &out)
+	}
+	return out
 }
 
 // handleListInstallerParents — GET /api/erp/installer-parents. The pickable

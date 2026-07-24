@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/p91/pulse/internal/auth"
 	"github.com/p91/pulse/internal/config"
 	"github.com/p91/pulse/internal/db"
@@ -31,12 +33,26 @@ func main() {
 	}
 	defer pool.Close()
 
+	// Optional second pool: the separate P91Elite DB (installer_applications).
+	// Best-effort — a missing/unreachable Elite DB must NOT block startup; the
+	// Applications tab degrades to an empty "unavailable" state.
+	var elitePool *pgxpool.Pool
+	if cfg.EliteDatabaseURL != "" {
+		if ep, eerr := db.NewPool(ctx, cfg.EliteDatabaseURL); eerr != nil {
+			log.Printf("elite db unavailable (%v) — installer applications will be empty", eerr)
+		} else {
+			elitePool = ep
+			defer elitePool.Close()
+			log.Printf("elite db connected (installer applications)")
+		}
+	}
+
 	authMgr := auth.NewManager(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	vasGW := vas.New(cfg.VASBaseURL, cfg.VASWebURL, cfg.VASSecret)
 	if vasGW.Enabled() {
 		log.Printf("VAS gateway enabled → %s", cfg.VASBaseURL)
 	}
-	srv := httpapi.NewServer(pool, authMgr, cfg.CORSOrigin, vasGW, cfg.VASAdminIdentifier)
+	srv := httpapi.NewServer(pool, elitePool, authMgr, cfg.CORSOrigin, vasGW, cfg.VASAdminIdentifier)
 
 	httpServer := &http.Server{
 		Addr:              ":" + cfg.Port,

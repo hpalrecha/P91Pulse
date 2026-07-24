@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Wrench, Plus, Pencil, Trash2, ChevronsUpDown, ChevronRight, ChevronDown,
-  UserCheck, UserX, RefreshCw, CheckCircle, XCircle, Eye,
+  UserCheck, UserX, RefreshCw, Eye,
 } from "lucide-react";
 
 /* ------------------------------------------------------------ helpers */
@@ -171,8 +171,8 @@ function InstallersTab() {
               {listQuery.isLoading && <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">Loading…</TableCell></TableRow>}
               {!listQuery.isLoading && installers.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">No installers yet.</TableCell></TableRow>}
               {installers.map((u) => (
-                <>
-                  <TableRow key={u.id}>
+                <Fragment key={u.id}>
+                  <TableRow>
                     <TableCell>
                       <button className="p-0.5" onClick={() => setExpanded((s) => ({ ...s, [u.id]: !s[u.id] }))} aria-label="expand">
                         {expanded[u.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -206,7 +206,7 @@ function InstallersTab() {
                     </TableCell>
                   </TableRow>
                   {expanded[u.id] && (
-                    <TableRow key={u.id + "-d"}>
+                    <TableRow>
                       <TableCell></TableCell>
                       <TableCell colSpan={7}>
                         <div className="text-sm grid grid-cols-2 md:grid-cols-4 gap-2 py-2">
@@ -222,7 +222,7 @@ function InstallersTab() {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               ))}
             </TableBody>
           </Table>
@@ -382,68 +382,61 @@ function AssignDialog({ user, parents, onClose }: { user: any | null; parents: a
 /* ==================================================== TAB 2 — APPLICATIONS */
 
 function ApplicationsTab() {
-  const { toast } = useToast();
   const appsQuery = useQuery<any>({ queryKey: ["/api/erp/installer-applications"] });
-  const apps: any[] = Array.isArray(appsQuery.data) ? appsQuery.data : [];
+  // Endpoint returns { data:[], unavailable:bool } (Elite DB). Tolerate a bare
+  // array too, for safety.
+  const resp = appsQuery.data;
+  const apps: any[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []);
+  const unavailable: boolean = !!resp?.unavailable;
   const [detail, setDetail] = useState<any | null>(null);
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/erp/installer-applications"] });
-  const decide = useMutation({
-    mutationFn: async ({ id, act }: { id: string; act: string }) =>
-      (await apiRequest("POST", `/api/erp/users/${id}/${act}`)).json(),
-    onSuccess: (_d, v) => {
-      invalidate();
-      queryClient.invalidateQueries({ queryKey: ["/api/erp/installers"] });
-      toast({ title: v.act === "approve" ? "Approved" : "Rejected" });
-      setDetail(null);
-    },
-    onError: (e) => toastErr(toast, e, "Action failed"),
-  });
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">Applications</CardTitle>
-        <CardDescription>Onboarding forms installers submitted (pending shown first).</CardDescription>
+        <CardDescription>Installer onboarding forms submitted on the P91 website (live from the P91Elite database).</CardDescription>
       </CardHeader>
       <CardContent>
+        {unavailable && (
+          <p className="text-sm text-amber-700 mb-3">
+            The applications source (P91Elite) isn't connected right now, so no submissions can be shown. Set ELITE_DATABASE_URL and retry.
+          </p>
+        )}
         <div className="border rounded-md">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Business</TableHead>
                 <TableHead>Contact</TableHead>
-                <TableHead>Location</TableHead>
+                <TableHead>City</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Submitted</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {appsQuery.isLoading && <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">Loading…</TableCell></TableRow>}
+              {appsQuery.isLoading && <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">Loading…</TableCell></TableRow>}
               {!appsQuery.isLoading && apps.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
-                  No installer applications yet. When an installer completes the onboarding form (invite signup), it will appear here for review.
+                <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                  {unavailable
+                    ? "Applications source unavailable."
+                    : "No installer applications yet. Submissions from the P91 website onboarding form appear here."}
                 </TableCell></TableRow>
               )}
               {apps.map((a) => (
                 <TableRow key={a.id}>
                   <TableCell>{a.businessName || a.name || "—"}</TableCell>
                   <TableCell>
-                    <div>{a.name}</div>
-                    <div className="text-xs text-muted-foreground">{a.email || a.phone}</div>
+                    <div>{a.name || "—"}</div>
+                    <div className="text-xs text-muted-foreground">{a.phone || a.email}</div>
                   </TableCell>
-                  <TableCell>{[a.city, a.state].filter(Boolean).join(", ") || "—"}</TableCell>
+                  <TableCell>{a.city || "—"}</TableCell>
+                  <TableCell>{a.businessType || "—"}</TableCell>
                   <TableCell>{a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "—"}</TableCell>
-                  <TableCell><Badge variant={a.status === "pending" ? "outline" : a.status === "approved" ? "default" : "secondary"}>{a.status}</Badge></TableCell>
+                  <TableCell><Badge variant={a.status === "submitted" ? "outline" : "secondary"}>{a.status || "—"}</Badge></TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="View" onClick={() => setDetail(a)}><Eye className="w-3.5 h-3.5" /></Button>
-                    {a.status === "pending" && (
-                      <>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-green-600" title="Approve" onClick={() => decide.mutate({ id: a.id, act: "approve" })}><CheckCircle className="w-3.5 h-3.5" /></Button>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" title="Reject" onClick={() => decide.mutate({ id: a.id, act: "reject" })}><XCircle className="w-3.5 h-3.5" /></Button>
-                      </>
-                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -465,22 +458,23 @@ function ApplicationsTab() {
               <Detail label="Business name" value={detail.businessName} />
               <Detail label="Business type" value={detail.businessType} />
               <Detail label="City" value={detail.city} />
-              <Detail label="State" value={detail.state} />
-              <Detail label="Postal code" value={detail.postalCode} />
-              <Detail label="Brand" value={detail.brand} />
-              <Detail label="Team size" value={detail.teamSize} />
-              <Detail label="Place" value={detail.placeName} />
-              <Detail label="Source" value={detail.onboardSource} />
+              <Detail label="Pincode" value={detail.pinCode} />
+              <Detail label="Store area" value={detail.storeArea} />
+              <Detail label="Website" value={detail.website} />
+              <Detail label="Instagram" value={detail.instagramHandle} />
+              <Detail label="Google Maps" value={detail.googleMapsLocation} />
               <Detail label="Submitted" value={detail.submittedAt ? new Date(detail.submittedAt).toLocaleString() : ""} />
+              <div className="col-span-2">
+                <div className="text-xs text-muted-foreground">Services</div>
+                <div>{Array.isArray(detail.services) && detail.services.length ? detail.services.join(", ") : "—"}</div>
+              </div>
+              <div className="col-span-2">
+                <div className="text-xs text-muted-foreground">Message</div>
+                <div className="whitespace-pre-wrap">{detail.message || "—"}</div>
+              </div>
             </div>
           )}
           <DialogFooter>
-            {detail?.status === "pending" && (
-              <>
-                <Button variant="outline" className="text-red-600" onClick={() => decide.mutate({ id: detail.id, act: "reject" })}>Reject</Button>
-                <Button onClick={() => decide.mutate({ id: detail.id, act: "approve" })}>Approve</Button>
-              </>
-            )}
             <Button variant="outline" onClick={() => setDetail(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>

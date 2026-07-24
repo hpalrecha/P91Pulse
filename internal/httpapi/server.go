@@ -17,16 +17,18 @@ import (
 type Server struct {
 	q                  *sqlc.Queries
 	pool               *pgxpool.Pool
+	elitePool          *pgxpool.Pool // optional read-only P91Elite DB; may be nil
 	auth               *auth.Manager
 	corsOrigin         string
 	vas                *vas.Gateway
 	vasAdminIdentifier string // VAS super-admin that Pulse admins embed AS
 }
 
-func NewServer(pool *pgxpool.Pool, authMgr *auth.Manager, corsOrigin string, vasGW *vas.Gateway, vasAdminIdentifier string) *Server {
+func NewServer(pool, elitePool *pgxpool.Pool, authMgr *auth.Manager, corsOrigin string, vasGW *vas.Gateway, vasAdminIdentifier string) *Server {
 	return &Server{
 		q:                  sqlc.New(pool),
 		pool:               pool,
+		elitePool:          elitePool,
 		auth:               authMgr,
 		corsOrigin:         corsOrigin,
 		vas:                vasGW,

@@ -63,6 +63,15 @@ func (s *Server) Router() http.Handler {
 			r.Post("/auth/logout", s.handleLogout)
 			r.Get("/me/permissions", s.handleMyPermissions)
 
+			// Native P91 mobile app (v1) — read-only, condensed shapes, isolated
+			// under /mobile/*. Additive only; see the app repo's docs/MOBILE-V1-SPEC.md.
+			r.Route("/mobile/pulse", func(r chi.Router) {
+				r.Get("/dashboard", s.handleMobilePulseDashboard)
+			})
+			r.Route("/mobile/vas", func(r chi.Router) {
+				r.Get("/dashboard", s.handleMobileVasDashboard)
+			})
+
 			// Frontend-facing (ported p91pulse_stage) contract under /api/erp.
 			r.Get("/erp/me", s.handleErpMe)
 			r.Get("/erp/my-coverage", s.handleMyCoverage)
